@@ -1,27 +1,42 @@
 import io.restassured.RestAssured;
+import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.http.ContentType;
+import io.restassured.specification.RequestSpecification;
 import org.junit.Test;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
-
+import static org.junit.Assert.assertTrue;
 
 public class ApiTest {
 
+    public static class LoginInfo {
+        public int code;
+        public String type;
+        public String message;
+    }
+
     @Test
     public void test() {
-        RestAssured.given().baseUri("http://localhost:8080/v2/user").contentType(ContentType.JSON).body(
-                "{"
-                        + "\"id\": 1,"
-                        + "\"username\": \"AlexKuzTest\","
-                        + "\"firstName\": \"User\","
-                        + "\"lastName\": \"ForTestov\","
-                        + "\"email\": \"test.user@gmail.com\","
-                        + "\"password\": \"12345\","
-                        + "\"phone\": \"+777\","
-                        + "\"userStatus\": 0"
-                        + "}"
-        ).when().post().then().statusCode(200);
+        RequestSpecification requestSpec = new RequestSpecBuilder()
+                .setBaseUri("http://localhost:8080/v2/")
+                .build();
+
+        Map<String, Object> createUser = new HashMap<>();
+        createUser.put("id", 1);
+        createUser.put("username", "AlexKuzTest");
+        createUser.put("firstName", "User");
+        createUser.put("lastName", "ForTestov");
+        createUser.put("email", "test.user@gmail.com");
+        createUser.put("password", "12345");
+        createUser.put("phone", "+777");
+        createUser.put("userStatus", 0);
+
+        RestAssured.given().spec(requestSpec).contentType(ContentType.JSON)
+                .body(createUser).when().post("user").then().statusCode(200);
 
         RestAssured.given()
                 .queryParams("username", "AlexKuzTest", "password", "12345").when().get("http://localhost:8080/v2/user/login").then().body("message", containsString("logged in user session"));
@@ -32,23 +47,13 @@ public class ApiTest {
         RestAssured.given()
                 .queryParams("username", "AlexKuzTest", "password", "12345").when().get("http://localhost:8080/v2/user/login").then().body("message", containsString("logged in user session"));
 
-        RestAssured.given()
-                .baseUri("http://localhost:8080/v2")
+        createUser.replace("phone", "+999");
+
+        RestAssured.given().spec(requestSpec)
                 .contentType(ContentType.JSON)
-                .body(
-                        "{"
-                                + "\"id\": 1,"
-                                + "\"username\": \"AlexKuzTest\","
-                                + "\"firstName\": \"User\","
-                                + "\"lastName\": \"ForTestov\","
-                                + "\"email\": \"test.user@gmail.com\","
-                                + "\"password\": \"12345\","
-                                + "\"phone\": \"+999\","
-                                + "\"userStatus\": 0"
-                                + "}"
-                )
+                .body(createUser)
                 .when()
-                .put("/user/AlexKuzTest")
+                .put("user/AlexKuzTest")
                 .then()
                 .statusCode(200);
 
@@ -59,13 +64,16 @@ public class ApiTest {
         RestAssured.given()
                 .when().get("http://localhost:8080/v2/user/logout").then().body("message", equalTo("ok"));
 
-        RestAssured.given()
+        String message = RestAssured.given().spec(requestSpec)
                 .queryParams("username", "AlexKuzTest", "password", "12345").when()
-                .get("http://localhost:8080/v2/user/login").then()
-                .body("message", containsString("logged in user session"));
+                .get("user/login").then()
+                .extract()
+                .path("message");
+
+        assertTrue(message.contains("logged in user session"));
 
         RestAssured.given()
-                .baseUri("http://localhost:8080/v2/pet")
+                .spec(requestSpec)
                 .contentType(ContentType.JSON)
                 .body(
                         "{"
@@ -78,9 +86,8 @@ public class ApiTest {
                                 + "}"
                 )
                 .when()
-                .post()
+                .post("pet")
                 .then().statusCode(200);
-
 
         RestAssured.given()
                 .when().get("http://localhost:8080/v2/pet/1").
@@ -90,10 +97,12 @@ public class ApiTest {
                 .when().get("http://localhost:8080/v2/user/logout").then()
                 .body("message", equalTo("ok"));
 
-        RestAssured.given()
+        LoginInfo info = RestAssured.given()
                 .queryParams("username", "AlexKuzTest", "password", "12345").when()
                 .get("http://localhost:8080/v2/user/login").then()
-                .body("message", containsString("logged in user session"));
+                .body("message", containsString("logged in user session")).extract().as(LoginInfo.class);
+
+        System.out.println("Десериализация: " + info.message);
 
         RestAssured.given()
                 .baseUri("http://localhost:8080/v2/store/order")
